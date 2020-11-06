@@ -2,14 +2,14 @@
 
 namespace Ebess\AdvancedNovaMediaLibrary\Fields;
 
-use Illuminate\Contracts\Validation\Rule;
-use Illuminate\Support\Collection;
 use Laravel\Nova\Fields\Field;
+use Spatie\MediaLibrary\HasMedia;
+use Illuminate\Support\Collection;
+use Illuminate\Contracts\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 use Laravel\Nova\Http\Requests\NovaRequest;
-use Spatie\MediaLibrary\HasMedia\HasMedia;
 use Spatie\MediaLibrary\HasMedia\HasMediaTrait;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Illuminate\Support\Facades\Validator;
 
 class Media extends Field
 {
@@ -107,7 +107,34 @@ class Media extends Field
     }
 
     /**
+     * Set the maximum accepted file size for the frontend in kBs
+     *
+     * @param int $maxSize
+     *
+     * @return $this
+     */
+    public function setMaxFileSize(int $maxSize)
+    {
+        return $this->withMeta(['maxFileSize' => $maxSize]);
+    }
+
+    /**
+     * Validate the file's type on the frontend side
+     * Example values for the array: 'image', 'video', 'image/jpeg'
+     *
+     * @param array $types
+     *
+     * @return $this
+     */
+    public function setAllowedFileTypes(array $types)
+    {
+        return $this->withMeta(['allowedFileTypes' => $types]);
+    }
+
+    /**
      * @param HasMedia $model
+     * @param mixed $requestAttribute
+     * @param mixed $attribute
      */
     protected function fillAttributeFromRequest(NovaRequest $request, $requestAttribute, $model, $attribute)
     {
@@ -157,7 +184,7 @@ class Media extends Field
 
     private function setOrder($ids)
     {
-        $mediaClass = config('medialibrary.media_model');
+        $mediaClass = config('media-library.media_model');
         $mediaClass::setNewOrder($ids);
     }
 
@@ -169,11 +196,11 @@ class Media extends Field
             })->map(function (UploadedFile $file, int $index) use ($request, $model, $collection) {
                 $media = $model->addMedia($file)->withCustomProperties($this->customProperties);
 
-                if($this->responsive) {
+                if ($this->responsive) {
                     $media->withResponsiveImages();
                 }
 
-                if(!empty($this->customHeaders)) {
+                if (! empty($this->customHeaders)) {
                     $media->addCustomHeaders($this->customHeaders);
                 }
 
@@ -201,7 +228,7 @@ class Media extends Field
     private function removeDeletedMedia($data, Collection $medias): Collection
     {
         $remainingIds = collect($data)->filter(function ($value) {
-            return !$value instanceof UploadedFile;
+            return ! $value instanceof UploadedFile;
         })->map(function ($value) {
             return $value;
         });
@@ -228,10 +255,10 @@ class Media extends Field
             $collectionName = call_user_func($this->computedCallback, $resource);
         }
 
-		$this->value = $resource->getMedia($collectionName)
-            ->map(function (\Spatie\MediaLibrary\Models\Media $media) {
+        $this->value = $resource->getMedia($collectionName)
+            ->map(function (\Spatie\MediaLibrary\MediaCollections\Models\Media $media) {
                 return array_merge($this->serializeMedia($media), ['__media_urls__' => $this->getConversionUrls($media)]);
-            });
+            })->values();
 
         if ($collectionName) {
             $this->checkCollectionIsMultiple($resource, $collectionName);
@@ -249,10 +276,10 @@ class Media extends Field
                 ->first()
                 ->singleFile ?? false;
 
-        $this->withMeta(['multiple' => !$isSingle]);
+        $this->withMeta(['multiple' => ! $isSingle]);
     }
 
-    public function serializeMedia(\Spatie\MediaLibrary\Models\Media $media): array
+    public function serializeMedia(\Spatie\MediaLibrary\MediaCollections\Models\Media $media): array
     {
         if ($this->serializeMediaCallback) {
             return call_user_func($this->serializeMediaCallback, $media);
